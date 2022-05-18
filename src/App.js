@@ -8,6 +8,7 @@ function App() {
         const position = getPointerLocation(e);
         // console.log([position.x, position.y]);
         setMouse([position.x - 20, position.y - 20]);
+        // setMouse([position.x, position.y]);
     };
     const getPointerLocation = (e) => {
         let position = { x: undefined, y: undefined };
