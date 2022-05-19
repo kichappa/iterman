@@ -47,3 +47,7 @@ body,
     touch-action: none;
     z-index: 2;
 }
+
+#physics {
+    opacity: 0;
+}

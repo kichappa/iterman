@@ -53,22 +53,23 @@ const Canvas = ({ id, mouseProp }) => {
     const [canvas] = useState(useRef(null));
     const [physics] = useState(useRef(null));
     const setup = useRef(null);
-    let numberOfPoints = 3;
+    let numberOfPoints = 1;
     function createPoints(numberOfPoints) {
         let R = [];
         let v = [];
         let points = [];
         for (let i = 0; i < numberOfPoints; i++) {
             // console.log(i);
-            R.push(Math.random() * 50 + 50);
+            R.push(Math.random() * 100);
             v.push([(Math.random() - 0.5) * 10, (Math.random() - 0.5) * 10]);
+            // console.log(window.innerHeight, window.innerWidth);
             points.push({
                 r: [
-                    Math.random() * (window.innerWidth - 40 - 100) + 100,
-                    Math.random() * (window.innerHeight - 40 - 100) + 100,
+                    Math.random() * (window.innerWidth - 40),
+                    Math.random() * (window.innerHeight - 40),
                 ],
                 R: R[i],
-                thickness: Math.random() * 10 + 10,
+                thickness: Math.random() * 10 + 2,
                 v: v[i],
                 a: vectorMath(
                     'scalar multiply',
@@ -76,6 +77,7 @@ const Canvas = ({ id, mouseProp }) => {
                     vectorMath('norm', v[i]) ** 2 / R[i]
                 ),
             });
+            console.log(points[points.length - 1]);
             // console.log(R, v, points);
         }
         return points;
@@ -99,8 +101,8 @@ const Canvas = ({ id, mouseProp }) => {
                 );
         });
     }
-    const p = createPoints(numberOfPoints);
-    const [points, setPoints] = useState(p);
+    // const p = ;
+    const [points, setPoints] = useState(createPoints(numberOfPoints));
 
     // useEffect(() => {
     //     // if (mouseProp) {
@@ -123,7 +125,7 @@ const Canvas = ({ id, mouseProp }) => {
         // console.log('r', points[0].r);
         // console.log('v', points[0].v);
         // console.log('a', points[0].a);
-        console.log('dot', vectorMath('dot', points[0].a, points[0].v));
+        // console.log('dot', vectorMath('dot', points[0].a, points[0].v));
     }, []);
 
     function setRV(newPoints) {
@@ -156,9 +158,9 @@ const Canvas = ({ id, mouseProp }) => {
                     vectorMath('perpendicular', newPoints[point].v),
                     (vectorMath('norm', newPoints[point].v) ** 2 /
                         newPoints[point].R) *
-                        (-1) ** Math.round(Math.random() * 0.75)
+                        (-1) ** (Math.round(Math.random() * 0.6) * 1)
                 ),
-                [(Math.random() - 0.5) * 0.2, (Math.random() - 0.5) * 0.3]
+                [(Math.random() - 0.5) * 0.14, (Math.random() - 0.5) * 0.18]
             );
             // console.log(
             //     'dot',
@@ -175,26 +177,26 @@ const Canvas = ({ id, mouseProp }) => {
     let delay = Math.floor(1000 / fps);
     // console.log(delay);
     useInterval(function () {
-        setRV(setAcc(points, delay));
-        // console.log(
-        //     ...points[0].r.map((x) => x.toFixed(2)),
-        //     ' | ',
-        //     ...points[0].v.map((x) => x.toFixed(2)),
-        //     ' | ',
-        //     ...points[0].a.map((x) => x.toFixed(2)),
-        //     ' | ',
-        //     (
-        //         vectorMath('norm', points[0].v) ** 2 /
-        //         vectorMath('norm', points[0].a)
-        //     ).toFixed(1)
-        // );
+        setRV(setAcc(points, 10));
+        console.log(
+            ...points[0].r.map((x) => x.toFixed(2)),
+            ' | ',
+            ...points[0].v.map((x) => x.toFixed(2)),
+            ' | ',
+            ...points[0].a.map((x) => x.toFixed(2)),
+            ' | ',
+            (
+                vectorMath('norm', points[0].v) ** 2 /
+                vectorMath('norm', points[0].a)
+            ).toFixed(1)
+        );
         // console.log('dot', vectorMath('dot', points[0].a, points[0].v));
         render(canvas, points, 10);
     }, delay);
 
     return (
         <>
-            <canvas ref={physics}></canvas>
+            <canvas id="physics" ref={physics}></canvas>
             <canvas id={id} ref={canvas}></canvas>
         </>
     );

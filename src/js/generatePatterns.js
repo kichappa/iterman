@@ -25,6 +25,7 @@ function getXY(points) {
 }
 
 const renderPatterns = (setup, canvas, points, radius) => {
+    console.log(points);
     const getVertexShader = () => {
         const vs = `#version 300 es
         in vec2 a_position;
@@ -32,11 +33,11 @@ const renderPatterns = (setup, canvas, points, radius) => {
     
         uniform vec2 u_resolution;
     
-        out vec2 v_position;
+        out vec4 v_texPosition;
     
         void main(){
             gl_Position = vec4(a_position/u_resolution * 2.-1., 0, 1);
-            v_position = vec2(a_position.x, u_resolution.y-a_position.y);
+            v_texPosition = vec4((gl_Position + 1.)/2.);
         }
         `;
         return vs;
@@ -46,7 +47,7 @@ const renderPatterns = (setup, canvas, points, radius) => {
         const fs = `#version 300 es
         precision highp float;
     
-        in vec2 v_position;
+        in vec4 v_texPosition;
     
         uniform float u_time;
         uniform vec2 u_points[${length}];
@@ -67,7 +68,7 @@ const renderPatterns = (setup, canvas, points, radius) => {
         }
     
         void main(){
-            vec2 v_oldPosition = vec2(v_position.x, u_resolution.y-v_position.y);
+            // vec2 v_oldPosition = vec2(v_position.x, u_resolution.y-v_position.y);
 
             // outColor = vec4(.5, 0.1, 0.15, .2);
             // if(distance(v_position, u_mouse)<=10.){
@@ -78,14 +79,16 @@ const renderPatterns = (setup, canvas, points, radius) => {
             
             outColor = vec4(0., 0., 0., 0.);
             if(u_copyTexture){
-                outColor = texture(u_texture, gl_FragCoord.xy);
+                outColor = texture(u_texture, v_texPosition.xy * vec2(1., -1.));
+                outColor = max(vec4(0.5, 0.0, 0.3, 1.0), outColor);
             }
             else{
-                if(shouldIColour(v_position)){
+                if(shouldIColour(gl_FragCoord.xy)){
                     outColor = vec4(1.0, 1.0, 1.0, 1.0);
                 }
                 if(!u_init){
-                    outColor = max(outColor, texture(u_texture, gl_FragCoord.xy));
+                    outColor = max(outColor, texture(u_texture, v_texPosition.xy));// * vec2(1., -1.)));
+                    // outColor = max(outColor, vec4(0.3, 0.7, 0.2, 1.0));
                     // outColor = max(vec4(0.4,0.0,0.0,1.0), texture(u_texture, gl_FragCoord.xy));
                 }
             }
@@ -102,13 +105,14 @@ const renderPatterns = (setup, canvas, points, radius) => {
         setup = {};
         shouldIReturnASetup = true;
         setup.gl = canvas.getContext('webgl2', {
-            antialias: true,
+            antialias: false,
             preserveDrawingBuffer: true,
         });
         const ctx = WebGLDebugUtil.makeDebugContext(setup.gl);
         // resizing canvas context to canvas width set by CSS
         canvas.width = canvas.offsetWidth * 1;
         canvas.height = canvas.offsetHeight * 1;
+        console.log(canvas.width, canvas.height);
 
         setup.programInfo = createProgramInfo(setup.gl, [
             getVertexShader(),
@@ -133,8 +137,8 @@ const renderPatterns = (setup, canvas, points, radius) => {
     resizeCanvasToDisplaySize(setup.gl.canvas);
     setup.gl.viewport(0, 0, setup.gl.canvas.width, setup.gl.canvas.height);
     // setup.gl.clear(setup.gl.DEPTH_BUFFER_BIT);
-    setup.gl.clear(setup.gl.COLOR_BUFFER_BIT);
-    setup.gl.useProgram(setup.programInfo.program);
+    // setup.gl.clear(setup.gl.COLOR_BUFFER_BIT);
+    if (shouldIReturnASetup) setup.gl.useProgram(setup.programInfo.program);
     setBuffersAndAttributes(setup.gl, setup.programInfo, bufferInfo);
     if (shouldIReturnASetup) {
         const tracers = [];
@@ -151,13 +155,14 @@ const renderPatterns = (setup, canvas, points, radius) => {
         setup.tracers = tracers;
         setup.frameBuffers = frameBuffers;
         setup.nextTexture = 0;
-    } else {
-        setup.gl.activeTexture(setup.gl.TEXTURE0 + 0);
-        setup.gl.bindTexture(
-            setup.gl.TEXTURE_2D,
-            setup.tracers[setup.nextTexture % 2]
-        );
     }
+    // else {
+    //     setup.gl.activeTexture(setup.gl.TEXTURE0 + 0);
+    //     setup.gl.bindTexture(
+    //         setup.gl.TEXTURE_2D,
+    //         setup.tracers[setup.nextTexture % 2]
+    //     );
+    // }
     const uniforms = {
         u_resolution: [canvas.width, canvas.height],
         u_time: 1,
@@ -165,18 +170,22 @@ const renderPatterns = (setup, canvas, points, radius) => {
         u_thickness: points.map(({ thickness }) => thickness),
         u_init: shouldIReturnASetup,
         u_copyTexture: false,
-        u_texture: setup.tracers[setup.nextTexture++ % 2],
+        u_texture: setup.tracers[setup.nextTexture],
     };
+    setBuffersAndAttributes(setup.gl, setup.programInfo, bufferInfo);
     setUniforms(setup.programInfo, uniforms);
-    bindFramebufferInfo(setup.gl, setup.frameBuffers[setup.nextTexture % 2]);
+    ++setup.nextTexture;
+    setup.nextTexture %= 2;
+    bindFramebufferInfo(setup.gl, setup.frameBuffers[setup.nextTexture]);
     drawBufferInfo(setup.gl, bufferInfo, setup.gl.TRIANGLES);
-    uniforms.u_copyTexture = false;
+    setBuffersAndAttributes(setup.gl, setup.programInfo, bufferInfo);
+    uniforms.u_copyTexture = true;
+    uniforms.u_texture = setup.tracers[setup.nextTexture];
+    setBuffersAndAttributes(setup.gl, setup.programInfo, bufferInfo);
     setUniforms(setup.programInfo, uniforms);
-    setup.gl.bindTexture(
-        setup.gl.TEXTURE_2D,
-        setup.tracers[setup.nextTexture % 2]
-    );
-    bindFramebufferInfo(setup.gl, null);
+    setup.gl.activeTexture(setup.gl.TEXTURE0 + setup.nextTexture);
+    setup.gl.bindTexture(setup.gl.TEXTURE_2D, setup.tracers[setup.nextTexture]);
+    setup.gl.bindFramebuffer(setup.gl.FRAMEBUFFER, null);
     setup.gl.viewport(0, 0, setup.gl.canvas.width, setup.gl.canvas.height);
     setup.gl.clearColor(0, 0, 0, 0);
     setup.gl.clear(setup.gl.COLOR_BUFFER_BIT | setup.gl.DEPTH_BUFFER_BIT);
@@ -342,16 +351,16 @@ const computePhysics = (canvas, points, deltaT) => {
             vec2 r = u_position[texelCoord.x];
             float pixel;
             if(texelCoord.y==0){
-                pixel = r.x + v.x * u_deltaT/25.;
+                pixel = r.x + v.x * u_deltaT/(25./1.);
             }
             else if(texelCoord.y==1){
-                pixel = r.y + v.y * u_deltaT/25.;
+                pixel = r.y + v.y * u_deltaT/(25./1.);
             }
             else if(texelCoord.y==2){
-                pixel = v.x + a.x * u_deltaT/25.;
+                pixel = v.x + a.x * u_deltaT/(25./1.);
             }
             else if(texelCoord.y==3){
-                pixel = v.y + a.y * u_deltaT/25.;
+                pixel = v.y + a.y * u_deltaT/(25./1.);
             }
 
             outColor = EncodeFloatRGBA(pixel)/vec4(255.);
@@ -360,15 +369,8 @@ const computePhysics = (canvas, points, deltaT) => {
         `;
         return fs;
     };
-    try {
-        canvas.offsetWidth = points.length;
-        canvas.offsetHeight = 4;
-        canvas.width = points.length;
-        canvas.height = 4;
-    } catch {
-        canvas.width = points.length;
-        canvas.height = 4;
-    }
+    canvas.width = points.length;
+    canvas.height = 4;
     // console.log(canvas.width, canvas.height, canvas);
 
     const tex = { r: [], v: [], a: [] };
